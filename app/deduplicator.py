@@ -148,7 +148,7 @@ def score_record_completeness(record: dict) -> int:
     return score
 
 
-def names_match(name1: str, name2: str, threshold: int = 80) -> bool:
+def names_match(name1: str, name2: str, threshold: int = 85) -> bool:
     """Check if two names match using fuzzy matching."""
     n1 = normalize_name(name1)
     n2 = normalize_name(name2)
@@ -156,6 +156,11 @@ def names_match(name1: str, name2: str, threshold: int = 80) -> bool:
         return False
     if n1 == n2:
         return True
+    # For short names, require higher similarity to avoid false positives
+    # "Person 1" vs "Person 10" would wrongly match at 80%
+    min_len = min(len(n1), len(n2))
+    if min_len < 10:
+        threshold = 95  # Very strict for short names
     ratio = fuzz.ratio(n1, n2)
     return ratio >= threshold
 
@@ -420,13 +425,11 @@ def process_csv(csv_content: str) -> dict:
             ]
         })
 
-    flagged_record_count = sum(1 + len(g.duplicates) for g in flagged_groups)
-
     return {
         'total_records': len(records),
         'duplicate_groups': groups_summary,
         'auto_merge_count': sum(len(g.duplicates) for g in auto_merge_groups),
-        'flagged_count': flagged_record_count,
+        'flagged_count': len(flagged_groups),  # Number of groups needing review
         'clean_count': len(clean_records),
         'master_csv': master_csv,
         'duplicates_csv': duplicates_csv
