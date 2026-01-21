@@ -1,15 +1,15 @@
 """
 CSV Deduplication Engine
 - Fuzzy name matching (80%+ similarity)
-- Email username matching (ignores domain)
+- Email matching (same username + same domain, ignoring TLD like .com/.es/.uk)
 - Company-aware grouping with flagging
 """
 
 import csv
 import io
+import re
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import Optional
 from rapidfuzz import fuzz
 
 
@@ -30,11 +30,38 @@ def normalize_name(name: str) -> str:
     return " ".join(name.lower().strip().split())
 
 
-def extract_email_username(email: str) -> str:
-    """Extract username from email, ignoring domain."""
+def extract_email_parts(email: str) -> tuple[str, str]:
+    """
+    Extract username and domain base from email.
+    nacho@google.com -> ('nacho', 'google')
+    nacho@google.es -> ('nacho', 'google')
+    nacho@mail.google.co.uk -> ('nacho', 'google')
+    """
     if not email or "@" not in email:
-        return ""
-    return email.split("@")[0].lower().strip()
+        return ("", "")
+
+    parts = email.lower().strip().split("@")
+    if len(parts) != 2:
+        return ("", "")
+
+    username = parts[0]
+    domain = parts[1]
+
+    # Remove TLD and extract main domain
+    # google.com -> google
+    # google.co.uk -> google
+    # mail.google.com -> google
+    domain_parts = domain.split(".")
+
+    # Filter out common TLDs and subdomains
+    tlds = {'com', 'es', 'uk', 'de', 'fr', 'it', 'nl', 'be', 'org', 'net', 'io', 'co', 'ai', 'app'}
+    subdomains = {'mail', 'email', 'smtp', 'www'}
+
+    # Get the main domain part
+    main_parts = [p for p in domain_parts if p not in tlds and p not in subdomains]
+    domain_base = main_parts[0] if main_parts else domain_parts[0]
+
+    return (username, domain_base)
 
 
 def get_all_emails(record: dict) -> list[str]:
@@ -54,15 +81,18 @@ def get_all_emails(record: dict) -> list[str]:
     return emails
 
 
-def get_email_usernames(record: dict) -> set[str]:
-    """Get all email usernames from a record."""
+def get_email_signatures(record: dict) -> set[str]:
+    """
+    Get email signatures (username+domain) for matching.
+    Returns set of 'username:domain' strings.
+    """
     emails = get_all_emails(record)
-    usernames = set()
+    signatures = set()
     for email in emails:
-        username = extract_email_username(email)
-        if username:
-            usernames.add(username)
-    return usernames
+        username, domain = extract_email_parts(email)
+        if username and domain:
+            signatures.add(f"{username}:{domain}")
+    return signatures
 
 
 def get_name_field(record: dict) -> str:
@@ -124,21 +154,24 @@ def names_match(name1: str, name2: str, threshold: int = 80) -> bool:
     n2 = normalize_name(name2)
     if not n1 or not n2:
         return False
-    # Exact match
     if n1 == n2:
         return True
-    # Fuzzy match
     ratio = fuzz.ratio(n1, n2)
     return ratio >= threshold
 
 
 def emails_match(record1: dict, record2: dict) -> bool:
-    """Check if two records share an email username."""
-    usernames1 = get_email_usernames(record1)
-    usernames2 = get_email_usernames(record2)
-    if not usernames1 or not usernames2:
+    """
+    Check if two records have matching emails.
+    Matches if same username AND same domain base (ignoring TLD).
+    nacho@google.com matches nacho@google.es
+    nacho@google.com does NOT match nacho@microsoft.com
+    """
+    sigs1 = get_email_signatures(record1)
+    sigs2 = get_email_signatures(record2)
+    if not sigs1 or not sigs2:
         return False
-    return bool(usernames1 & usernames2)
+    return bool(sigs1 & sigs2)
 
 
 def merge_records(master: dict, duplicates: list[dict]) -> dict:
@@ -149,7 +182,6 @@ def merge_records(master: dict, duplicates: list[dict]) -> dict:
         if master_value:
             merged[key] = master_value
             continue
-        # Try to fill from duplicates
         for dup in duplicates:
             dup_value = dup.get(key)
             if dup_value:
@@ -158,52 +190,39 @@ def merge_records(master: dict, duplicates: list[dict]) -> dict:
         if key not in merged:
             merged[key] = master_value
 
-    # Merge email addresses (combine unique ones)
+    # Merge email addresses
     master_emails = set(get_all_emails(master))
     for dup in duplicates:
         master_emails.update(get_all_emails(dup))
 
-    # Find the email column and update if we have more emails
     for key in master.keys():
         if 'email' in key.lower() and master_emails:
-            # If it's a list-like field, add all emails
             merged[key] = list(master_emails)[0] if len(master_emails) == 1 else ", ".join(sorted(master_emails))
 
     return merged
 
 
 def find_duplicates(records: list[dict]) -> tuple[list[DuplicateGroup], list[dict]]:
-    """
-    Find duplicate records in the dataset.
-
-    Returns:
-        - List of DuplicateGroup objects
-        - List of records with no duplicates (clean records)
-    """
+    """Find duplicate records in the dataset."""
     if not records:
         return [], []
 
-    # Index records for efficient lookup
     processed = set()
     duplicate_groups = []
     clean_records = []
 
-    # Build candidate pairs based on name similarity and email username matching
+    # Build candidate buckets
     candidates = defaultdict(list)
 
     for i, record in enumerate(records):
         name = normalize_name(get_name_field(record))
         if name:
-            # Use first 3 chars of name as bucket key for efficiency
             bucket_key = name[:3] if len(name) >= 3 else name
             candidates[bucket_key].append(i)
 
-        # Also bucket by email username
-        for username in get_email_usernames(record):
-            if username:
-                candidates[f"email:{username}"].append(i)
+        for sig in get_email_signatures(record):
+            candidates[f"email:{sig}"].append(i)
 
-    # Find groups of duplicates
     for i, record in enumerate(records):
         if i in processed:
             continue
@@ -211,7 +230,6 @@ def find_duplicates(records: list[dict]) -> tuple[list[DuplicateGroup], list[dic
         record_name = get_name_field(record)
         record_company = get_company_field(record)
 
-        # Find all potential matches
         potential_matches = set()
         name_normalized = normalize_name(record_name)
 
@@ -221,12 +239,11 @@ def find_duplicates(records: list[dict]) -> tuple[list[DuplicateGroup], list[dic
                 if j != i and j not in processed:
                     potential_matches.add(j)
 
-        for username in get_email_usernames(record):
-            for j in candidates.get(f"email:{username}", []):
+        for sig in get_email_signatures(record):
+            for j in candidates.get(f"email:{sig}", []):
                 if j != i and j not in processed:
                     potential_matches.add(j)
 
-        # Check each potential match
         auto_merge = []
         flagged = []
 
@@ -235,30 +252,22 @@ def find_duplicates(records: list[dict]) -> tuple[list[DuplicateGroup], list[dic
             other_name = get_name_field(other)
             other_company = get_company_field(other)
 
-            # Check if they match by name or email
             name_matches = names_match(record_name, other_name)
             email_matches = emails_match(record, other)
 
             if not name_matches and not email_matches:
                 continue
 
-            # Determine merge type based on company
             if not record_company or not other_company:
-                # One or both have no company - auto merge
-                auto_merge.append((j, "No company on one/both records"))
+                auto_merge.append((j, "No company on one/both"))
             elif record_company.lower() == other_company.lower():
-                # Same company - auto merge
                 auto_merge.append((j, "Same company"))
             else:
-                # Different companies - flag for user decision
-                flagged.append((j, f"Different companies: '{record_company}' vs '{other_company}'"))
+                flagged.append((j, f"Different companies: {record_company} vs {other_company}"))
 
-        # Create duplicate groups
         if auto_merge or flagged:
-            # Process auto-merge group
             if auto_merge:
                 all_in_group = [record] + [records[j] for j, _ in auto_merge]
-                # Find master (highest completeness score)
                 scored = [(score_record_completeness(r), idx, r) for idx, r in enumerate(all_in_group)]
                 scored.sort(reverse=True)
                 master = scored[0][2]
@@ -278,12 +287,10 @@ def find_duplicates(records: list[dict]) -> tuple[list[DuplicateGroup], list[dic
                 for j, _ in auto_merge:
                     processed.add(j)
 
-            # Process flagged group separately
             if flagged:
                 for j, reason in flagged:
                     if j not in processed:
                         other = records[j]
-                        # Determine master by score
                         if score_record_completeness(record) >= score_record_completeness(other):
                             master, dup = record, other
                         else:
@@ -294,7 +301,7 @@ def find_duplicates(records: list[dict]) -> tuple[list[DuplicateGroup], list[dic
                             duplicates=[dup],
                             merge_type='flagged',
                             reason=reason,
-                            merged_data={}  # Don't merge flagged records
+                            merged_data={}
                         ))
 
                         if i not in processed:
@@ -312,16 +319,10 @@ def process_csv(csv_content: str) -> dict:
     """
     Process a CSV file and find duplicates.
 
-    Returns a dict with:
-        - total_records: int
-        - duplicate_groups: list of DuplicateGroup info
-        - auto_merge_count: int
-        - flagged_count: int
-        - clean_count: int
-        - master_csv: str (CSV content of master records with merged data)
-        - duplicates_csv: str (CSV content of records to delete)
+    Returns 2 CSVs:
+    - master_csv: Clean records + merged masters + flagged records (with _status column)
+    - duplicates_csv: Records to delete from Attio
     """
-    # Parse CSV
     reader = csv.DictReader(io.StringIO(csv_content))
     records = list(reader)
     fieldnames = reader.fieldnames or []
@@ -337,69 +338,69 @@ def process_csv(csv_content: str) -> dict:
             'duplicates_csv': ''
         }
 
-    # Find duplicates
     duplicate_groups, clean_records = find_duplicates(records)
 
-    # Separate auto-merge and flagged
     auto_merge_groups = [g for g in duplicate_groups if g.merge_type == 'auto']
     flagged_groups = [g for g in duplicate_groups if g.merge_type == 'flagged']
 
-    # Build master CSV (clean records + merged masters)
+    # Build master CSV with status column
+    output_fieldnames = fieldnames + ['_status', '_note']
     master_records = []
+
+    # Add clean records
     for record in clean_records:
-        master_records.append(record)
+        r = dict(record)
+        r['_status'] = 'clean'
+        r['_note'] = ''
+        master_records.append(r)
 
+    # Add merged masters
     for group in auto_merge_groups:
-        master_records.append(group.merged_data)
+        r = dict(group.merged_data)
+        r['_status'] = 'merged'
+        r['_note'] = f'Merged {len(group.duplicates)} duplicate(s)'
+        master_records.append(r)
 
-    # For flagged groups, include both records with a flag
-    flagged_fieldnames = fieldnames + ['_duplicate_flag', '_duplicate_reason']
-    flagged_records = []
-
+    # Add flagged records (both sides, for user to review)
     for group in flagged_groups:
-        master_with_flag = dict(group.master_record)
-        master_with_flag['_duplicate_flag'] = 'POTENTIAL_DUPLICATE'
-        master_with_flag['_duplicate_reason'] = group.reason
-        flagged_records.append(master_with_flag)
+        r = dict(group.master_record)
+        r['_status'] = 'review'
+        r['_note'] = group.reason
+        master_records.append(r)
 
         for dup in group.duplicates:
-            dup_with_flag = dict(dup)
-            dup_with_flag['_duplicate_flag'] = 'POTENTIAL_DUPLICATE'
-            dup_with_flag['_duplicate_reason'] = group.reason
-            flagged_records.append(dup_with_flag)
+            r = dict(dup)
+            r['_status'] = 'review'
+            r['_note'] = group.reason
+            master_records.append(r)
 
     # Build duplicates CSV (records to delete)
+    dup_fieldnames = fieldnames + ['_merged_into']
     duplicates_to_delete = []
+
     for group in auto_merge_groups:
+        master_name = get_name_field(group.master_record)
         for dup in group.duplicates:
-            dup_with_master = dict(dup)
-            dup_with_master['_merged_into'] = get_name_field(group.master_record)
-            duplicates_to_delete.append(dup_with_master)
+            r = dict(dup)
+            r['_merged_into'] = master_name
+            duplicates_to_delete.append(r)
 
     # Generate CSV strings
     master_output = io.StringIO()
     if master_records:
-        writer = csv.DictWriter(master_output, fieldnames=fieldnames, extrasaction='ignore')
+        writer = csv.DictWriter(master_output, fieldnames=output_fieldnames, extrasaction='ignore')
         writer.writeheader()
         writer.writerows(master_records)
     master_csv = master_output.getvalue()
 
     duplicates_output = io.StringIO()
     if duplicates_to_delete:
-        dup_fieldnames = fieldnames + ['_merged_into']
         writer = csv.DictWriter(duplicates_output, fieldnames=dup_fieldnames, extrasaction='ignore')
         writer.writeheader()
         writer.writerows(duplicates_to_delete)
     duplicates_csv = duplicates_output.getvalue()
 
-    flagged_output = io.StringIO()
-    if flagged_records:
-        writer = csv.DictWriter(flagged_output, fieldnames=flagged_fieldnames, extrasaction='ignore')
-        writer.writeheader()
-        writer.writerows(flagged_records)
-    flagged_csv = flagged_output.getvalue()
-
-    # Build summary of duplicate groups for preview
+    # Build summary
     groups_summary = []
     for group in duplicate_groups:
         groups_summary.append({
@@ -419,13 +420,14 @@ def process_csv(csv_content: str) -> dict:
             ]
         })
 
+    flagged_record_count = sum(1 + len(g.duplicates) for g in flagged_groups)
+
     return {
         'total_records': len(records),
         'duplicate_groups': groups_summary,
         'auto_merge_count': sum(len(g.duplicates) for g in auto_merge_groups),
-        'flagged_count': len(flagged_records),
+        'flagged_count': flagged_record_count,
         'clean_count': len(clean_records),
         'master_csv': master_csv,
-        'duplicates_csv': duplicates_csv,
-        'flagged_csv': flagged_csv
+        'duplicates_csv': duplicates_csv
     }

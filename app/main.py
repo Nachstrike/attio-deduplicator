@@ -35,8 +35,9 @@ templates = Jinja2Templates(directory=BASE_DIR / "templates")
 # Stripe configuration
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY", "")
 STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
-STRIPE_PRICE_PER_RECORD = 0.01  # $0.01 per record
+STRIPE_PRICE_PER_RECORD = 0.01  # €0.01 per record
 FREE_TIER_LIMIT = 100
+CURRENCY = "eur"
 
 # In-memory session storage (use Redis in production)
 sessions = {}
@@ -118,7 +119,7 @@ async def upload_csv(file: UploadFile = File(...)):
         'flagged_count': result['flagged_count'],
         'clean_count': result['clean_count'],
         'price_cents': price_cents,
-        'price_display': f"${price_cents / 100:.2f}" if price_cents > 0 else "Free",
+        'price_display': f"€{price_cents / 100:.2f}" if price_cents > 0 else "Free",
         'is_free_tier': is_free_tier
     }
 
@@ -159,7 +160,7 @@ async def create_checkout(session_id: str):
             payment_method_types=['card'],
             line_items=[{
                 'price_data': {
-                    'currency': 'usd',
+                    'currency': CURRENCY,
                     'unit_amount': session['price_cents'],
                     'product_data': {
                         'name': f"CSV Deduplication - {session['result']['total_records']} records",
@@ -270,30 +271,6 @@ async def download_duplicates_csv(session_id: str):
 
     csv_content = session['result']['duplicates_csv']
     filename = f"duplicates_to_delete_{session['filename']}"
-
-    return StreamingResponse(
-        iter([csv_content]),
-        media_type="text/csv",
-        headers={"Content-Disposition": f"attachment; filename={filename}"}
-    )
-
-
-@app.get("/download/{session_id}/flagged.csv")
-async def download_flagged_csv(session_id: str):
-    """Download the flagged CSV (potential duplicates for review)."""
-    if session_id not in sessions:
-        raise HTTPException(status_code=404, detail="Session not found")
-
-    session = sessions[session_id]
-
-    if not session['paid']:
-        raise HTTPException(status_code=403, detail="Payment required")
-
-    csv_content = session['result'].get('flagged_csv', '')
-    if not csv_content:
-        raise HTTPException(status_code=404, detail="No flagged records")
-
-    filename = f"flagged_review_{session['filename']}"
 
     return StreamingResponse(
         iter([csv_content]),
