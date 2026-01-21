@@ -27,10 +27,17 @@ app = FastAPI(
     description="Find and merge duplicate records in your CSV files"
 )
 
-# Mount static files
+# Setup paths
 BASE_DIR = Path(__file__).resolve().parent.parent
-app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
+
+# Mount static files only if directory exists and has files
+static_dir = BASE_DIR / "static"
+if static_dir.exists():
+    try:
+        app.mount("/static", StaticFiles(directory=static_dir), name="static")
+    except Exception:
+        pass  # Skip if empty or fails
 
 # Stripe configuration
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY", "")
