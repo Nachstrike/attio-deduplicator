@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Download Your Clean Data - CSV Deduplicator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 min-h-screen">
+    <div class="container mx-auto px-4 py-12">
+        <div class="max-w-3xl mx-auto">
+            <!-- Success Header -->
+            <div class="text-center mb-12">
+                <div class="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <i class="fas fa-check text-4xl text-green-400"></i>
+                </div>
+                <h1 class="text-4xl font-bold text-white mb-4">Your Clean Data is Ready!</h1>
+                <p class="text-gray-400">{{ session.filename }}</p>
+            </div>
+
+            <!-- Summary -->
+            <div class="bg-white/10 rounded-xl p-6 mb-8">
+                <h2 class="text-xl font-bold text-white mb-4">Summary</h2>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div class="text-center">
+                        <p class="text-2xl font-bold text-white">{{ session.result.total_records }}</p>
+                        <p class="text-gray-400 text-sm">Original Records</p>
+                    </div>
+                    <div class="text-center">
+                        <p class="text-2xl font-bold text-red-400">{{ session.result.auto_merge_count }}</p>
+                        <p class="text-gray-400 text-sm">Duplicates Merged</p>
+                    </div>
+                    <div class="text-center">
+                        <p class="text-2xl font-bold text-yellow-400">{{ session.result.flagged_count }}</p>
+                        <p class="text-gray-400 text-sm">Flagged for Review</p>
+                    </div>
+                    <div class="text-center">
+                        <p class="text-2xl font-bold text-green-400">{{ session.result.total_records - session.result.auto_merge_count }}</p>
+                        <p class="text-gray-400 text-sm">Final Records</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Download Cards -->
+            <div class="space-y-4 mb-8">
+                <!-- Master CSV -->
+                <div class="bg-white/10 rounded-xl p-6">
+                    <div class="flex items-start justify-between">
+                        <div class="flex items-start gap-4">
+                            <div class="w-12 h-12 bg-green-500/20 rounded-lg flex items-center justify-center">
+                                <i class="fas fa-file-csv text-xl text-green-400"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-xl font-bold text-white mb-1">Master CSV</h3>
+                                <p class="text-gray-400 mb-2">Clean records with merged data from duplicates</p>
+                                <p class="text-gray-500 text-sm">{{ session.result.total_records - session.result.auto_merge_count }} records</p>
+                            </div>
+                        </div>
+                        <a href="/download/{{ session_id }}/master.csv" class="bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-6 rounded-lg transition-all">
+                            <i class="fas fa-download mr-2"></i>Download
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Duplicates to Delete -->
+                {% if session.result.auto_merge_count > 0 %}
+                <div class="bg-white/10 rounded-xl p-6">
+                    <div class="flex items-start justify-between">
+                        <div class="flex items-start gap-4">
+                            <div class="w-12 h-12 bg-red-500/20 rounded-lg flex items-center justify-center">
+                                <i class="fas fa-trash-alt text-xl text-red-400"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-xl font-bold text-white mb-1">Duplicates to Delete</h3>
+                                <p class="text-gray-400 mb-2">Records to remove from your CRM</p>
+                                <p class="text-gray-500 text-sm">{{ session.result.auto_merge_count }} records</p>
+                            </div>
+                        </div>
+                        <a href="/download/{{ session_id }}/duplicates.csv" class="bg-red-500 hover:bg-red-600 text-white font-bold py-3 px-6 rounded-lg transition-all">
+                            <i class="fas fa-download mr-2"></i>Download
+                        </a>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Flagged for Review -->
+                {% if session.result.flagged_count > 0 %}
+                <div class="bg-white/10 rounded-xl p-6">
+                    <div class="flex items-start justify-between">
+                        <div class="flex items-start gap-4">
+                            <div class="w-12 h-12 bg-yellow-500/20 rounded-lg flex items-center justify-center">
+                                <i class="fas fa-flag text-xl text-yellow-400"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-xl font-bold text-white mb-1">Flagged for Review</h3>
+                                <p class="text-gray-400 mb-2">Same name, different company - review manually</p>
+                                <p class="text-gray-500 text-sm">{{ session.result.flagged_count }} records</p>
+                            </div>
+                        </div>
+                        <a href="/download/{{ session_id }}/flagged.csv" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-3 px-6 rounded-lg transition-all">
+                            <i class="fas fa-download mr-2"></i>Download
+                        </a>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Instructions -->
+            <div class="bg-purple-500/10 border border-purple-500/30 rounded-xl p-6 mb-8">
+                <h2 class="text-xl font-bold text-white mb-4">
+                    <i class="fas fa-lightbulb text-yellow-400 mr-2"></i>
+                    Next Steps
+                </h2>
+                <ol class="space-y-3 text-gray-300">
+                    <li class="flex items-start gap-3">
+                        <span class="bg-purple-500/30 text-purple-300 w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-sm">1</span>
+                        <span><strong class="text-white">Delete duplicates</strong> - Use the duplicates CSV to identify and delete these records from your CRM first.</span>
+                    </li>
+                    <li class="flex items-start gap-3">
+                        <span class="bg-purple-500/30 text-purple-300 w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-sm">2</span>
+                        <span><strong class="text-white">Review flagged records</strong> - Check the flagged CSV for same-name/different-company cases.</span>
+                    </li>
+                    <li class="flex items-start gap-3">
+                        <span class="bg-purple-500/30 text-purple-300 w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-sm">3</span>
+                        <span><strong class="text-white">Import master CSV</strong> - Upload the clean master CSV to update your CRM with merged data.</span>
+                    </li>
+                </ol>
+            </div>
+
+            <!-- CTA -->
+            <div class="text-center">
+                <a href="/" class="text-purple-400 hover:text-purple-300 font-semibold">
+                    <i class="fas fa-plus mr-2"></i>Process Another CSV
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Expiry Notice -->
+    <footer class="text-center py-8 text-gray-500">
+        <p><i class="fas fa-clock mr-2"></i>Downloads expire in 24 hours for your privacy</p>
+    </footer>
+</body>
+</html>

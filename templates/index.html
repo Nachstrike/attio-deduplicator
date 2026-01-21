@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CSV Deduplicator - Clean Your Contact Lists</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 min-h-screen">
+    <!-- Hero Section -->
+    <div class="container mx-auto px-4 py-16">
+        <div class="text-center mb-16">
+            <h1 class="text-5xl md:text-6xl font-bold text-white mb-6">
+                Clean Your <span class="text-purple-400">Contact Lists</span>
+            </h1>
+            <p class="text-xl text-gray-300 max-w-2xl mx-auto mb-8">
+                Upload your CSV, find duplicates instantly, and download clean data.
+                Smart matching catches even tricky duplicates like "Jon Smith" vs "John Smith".
+            </p>
+            <div class="flex justify-center gap-4 text-sm text-gray-400">
+                <span><i class="fas fa-check text-green-400 mr-2"></i>100 records free</span>
+                <span><i class="fas fa-check text-green-400 mr-2"></i>$0.01/record after</span>
+                <span><i class="fas fa-check text-green-400 mr-2"></i>No signup required</span>
+            </div>
+        </div>
+
+        <!-- Upload Card -->
+        <div class="max-w-2xl mx-auto">
+            <div class="bg-white/10 backdrop-blur-lg rounded-2xl p-8 shadow-2xl border border-white/20">
+                <div id="upload-zone" class="border-2 border-dashed border-purple-400/50 rounded-xl p-12 text-center cursor-pointer hover:border-purple-400 transition-all">
+                    <input type="file" id="file-input" accept=".csv" class="hidden">
+                    <div id="upload-content">
+                        <i class="fas fa-cloud-upload-alt text-5xl text-purple-400 mb-4"></i>
+                        <p class="text-xl text-white mb-2">Drop your CSV here</p>
+                        <p class="text-gray-400">or click to browse</p>
+                    </div>
+                    <div id="upload-progress" class="hidden">
+                        <i class="fas fa-spinner fa-spin text-5xl text-purple-400 mb-4"></i>
+                        <p class="text-xl text-white mb-2">Analyzing your data...</p>
+                        <p class="text-gray-400" id="progress-text">Finding duplicates</p>
+                    </div>
+                </div>
+
+                <!-- Results Preview (hidden initially) -->
+                <div id="results-preview" class="hidden mt-8">
+                    <div class="border-t border-white/20 pt-8">
+                        <h3 class="text-2xl font-bold text-white mb-6">Analysis Complete</h3>
+
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                            <div class="bg-white/5 rounded-lg p-4 text-center">
+                                <p class="text-3xl font-bold text-white" id="total-records">0</p>
+                                <p class="text-gray-400 text-sm">Total Records</p>
+                            </div>
+                            <div class="bg-white/5 rounded-lg p-4 text-center">
+                                <p class="text-3xl font-bold text-red-400" id="duplicates-count">0</p>
+                                <p class="text-gray-400 text-sm">Duplicates Found</p>
+                            </div>
+                            <div class="bg-white/5 rounded-lg p-4 text-center">
+                                <p class="text-3xl font-bold text-yellow-400" id="flagged-count">0</p>
+                                <p class="text-gray-400 text-sm">Need Review</p>
+                            </div>
+                            <div class="bg-white/5 rounded-lg p-4 text-center">
+                                <p class="text-3xl font-bold text-green-400" id="clean-count">0</p>
+                                <p class="text-gray-400 text-sm">Clean Records</p>
+                            </div>
+                        </div>
+
+                        <!-- Duplicate Groups Preview -->
+                        <div id="groups-preview" class="mb-8 max-h-64 overflow-y-auto">
+                            <!-- Groups will be inserted here -->
+                        </div>
+
+                        <!-- Pricing & CTA -->
+                        <div class="bg-purple-500/20 rounded-lg p-6 mb-6">
+                            <div class="flex justify-between items-center">
+                                <div>
+                                    <p class="text-white font-semibold">Price</p>
+                                    <p class="text-gray-300 text-sm" id="price-explanation">Free for up to 100 records</p>
+                                </div>
+                                <p class="text-3xl font-bold text-white" id="price-display">Free</p>
+                            </div>
+                        </div>
+
+                        <button id="continue-btn" class="w-full bg-purple-500 hover:bg-purple-600 text-white font-bold py-4 px-8 rounded-lg transition-all text-lg">
+                            <span id="btn-text">Download Clean CSV</span>
+                            <i class="fas fa-arrow-right ml-2"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Features Section -->
+        <div class="max-w-4xl mx-auto mt-24 grid md:grid-cols-3 gap-8">
+            <div class="text-center">
+                <div class="w-16 h-16 bg-purple-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i class="fas fa-brain text-2xl text-purple-400"></i>
+                </div>
+                <h3 class="text-xl font-bold text-white mb-2">Smart Matching</h3>
+                <p class="text-gray-400">Catches fuzzy matches like "Jon" vs "John" and same email usernames across domains.</p>
+            </div>
+            <div class="text-center">
+                <div class="w-16 h-16 bg-purple-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i class="fas fa-merge text-2xl text-purple-400"></i>
+                </div>
+                <h3 class="text-xl font-bold text-white mb-2">Smart Merging</h3>
+                <p class="text-gray-400">Keeps the most complete record and merges data from duplicates automatically.</p>
+            </div>
+            <div class="text-center">
+                <div class="w-16 h-16 bg-purple-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i class="fas fa-flag text-2xl text-purple-400"></i>
+                </div>
+                <h3 class="text-xl font-bold text-white mb-2">Company Flagging</h3>
+                <p class="text-gray-400">Same name, different company? We flag it for your review instead of auto-merging.</p>
+            </div>
+        </div>
+
+        <!-- How it works -->
+        <div class="max-w-4xl mx-auto mt-24">
+            <h2 class="text-3xl font-bold text-white text-center mb-12">How It Works</h2>
+            <div class="grid md:grid-cols-3 gap-8">
+                <div class="relative">
+                    <div class="absolute -left-4 -top-4 w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center text-white font-bold">1</div>
+                    <div class="bg-white/5 rounded-lg p-6">
+                        <h3 class="text-xl font-bold text-white mb-2">Upload CSV</h3>
+                        <p class="text-gray-400">Upload your contact list. We support any CSV with name/email columns.</p>
+                    </div>
+                </div>
+                <div class="relative">
+                    <div class="absolute -left-4 -top-4 w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center text-white font-bold">2</div>
+                    <div class="bg-white/5 rounded-lg p-6">
+                        <h3 class="text-xl font-bold text-white mb-2">Review Duplicates</h3>
+                        <p class="text-gray-400">See which records will be merged and which need your review.</p>
+                    </div>
+                </div>
+                <div class="relative">
+                    <div class="absolute -left-4 -top-4 w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center text-white font-bold">3</div>
+                    <div class="bg-white/5 rounded-lg p-6">
+                        <h3 class="text-xl font-bold text-white mb-2">Download Clean Data</h3>
+                        <p class="text-gray-400">Get your master CSV plus a list of duplicates to delete from your CRM.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="text-center py-8 text-gray-500">
+        <p>Built for CRM cleanup. Your data is processed securely and deleted after 24 hours.</p>
+    </footer>
+
+    <script>
+        const uploadZone = document.getElementById('upload-zone');
+        const fileInput = document.getElementById('file-input');
+        const uploadContent = document.getElementById('upload-content');
+        const uploadProgress = document.getElementById('upload-progress');
+        const resultsPreview = document.getElementById('results-preview');
+        const continueBtn = document.getElementById('continue-btn');
+
+        let currentSessionId = null;
+
+        // Click to upload
+        uploadZone.addEventListener('click', () => fileInput.click());
+
+        // Drag and drop
+        uploadZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadZone.classList.add('border-purple-400', 'bg-purple-500/10');
+        });
+
+        uploadZone.addEventListener('dragleave', () => {
+            uploadZone.classList.remove('border-purple-400', 'bg-purple-500/10');
+        });
+
+        uploadZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadZone.classList.remove('border-purple-400', 'bg-purple-500/10');
+            const file = e.dataTransfer.files[0];
+            if (file && file.name.endsWith('.csv')) {
+                uploadFile(file);
+            }
+        });
+
+        fileInput.addEventListener('change', () => {
+            if (fileInput.files[0]) {
+                uploadFile(fileInput.files[0]);
+            }
+        });
+
+        async function uploadFile(file) {
+            // Show progress
+            uploadContent.classList.add('hidden');
+            uploadProgress.classList.remove('hidden');
+            resultsPreview.classList.add('hidden');
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Upload failed');
+                }
+
+                const data = await response.json();
+                currentSessionId = data.session_id;
+                showResults(data);
+            } catch (error) {
+                alert('Error: ' + error.message);
+                resetUpload();
+            }
+        }
+
+        function showResults(data) {
+            uploadProgress.classList.add('hidden');
+            resultsPreview.classList.remove('hidden');
+
+            document.getElementById('total-records').textContent = data.total_records;
+            document.getElementById('duplicates-count').textContent = data.auto_merge_count;
+            document.getElementById('flagged-count').textContent = data.flagged_count;
+            document.getElementById('clean-count').textContent = data.clean_count;
+            document.getElementById('price-display').textContent = data.price_display;
+
+            if (data.is_free_tier) {
+                document.getElementById('price-explanation').textContent = 'Free for up to 100 records';
+                document.getElementById('btn-text').textContent = 'Download Clean CSV';
+            } else {
+                document.getElementById('price-explanation').textContent = `${data.total_records} records × $0.01/record`;
+                document.getElementById('btn-text').textContent = 'Continue to Payment';
+            }
+
+            // Show duplicate groups
+            const groupsContainer = document.getElementById('groups-preview');
+            groupsContainer.innerHTML = '';
+
+            if (data.duplicate_groups && data.duplicate_groups.length > 0) {
+                data.duplicate_groups.forEach(group => {
+                    const groupEl = document.createElement('div');
+                    groupEl.className = 'bg-white/5 rounded-lg p-4 mb-2';
+
+                    const badge = group.merge_type === 'flagged'
+                        ? '<span class="bg-yellow-500/20 text-yellow-400 text-xs px-2 py-1 rounded">REVIEW</span>'
+                        : '<span class="bg-green-500/20 text-green-400 text-xs px-2 py-1 rounded">AUTO-MERGE</span>';
+
+                    groupEl.innerHTML = `
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <p class="text-white font-medium">${group.master_name || 'Unknown'}</p>
+                                <p class="text-gray-400 text-sm">${group.master_company || 'No company'} · ${group.master_email || 'No email'}</p>
+                                <p class="text-gray-500 text-xs mt-1">${group.duplicate_count} duplicate(s) · ${group.reason}</p>
+                            </div>
+                            ${badge}
+                        </div>
+                    `;
+                    groupsContainer.appendChild(groupEl);
+                });
+
+                if (data.total_duplicate_groups > data.duplicate_groups.length) {
+                    const moreEl = document.createElement('p');
+                    moreEl.className = 'text-gray-500 text-center text-sm py-2';
+                    moreEl.textContent = `+ ${data.total_duplicate_groups - data.duplicate_groups.length} more groups`;
+                    groupsContainer.appendChild(moreEl);
+                }
+            } else {
+                groupsContainer.innerHTML = '<p class="text-gray-400 text-center py-4">No duplicates found! Your data is clean.</p>';
+            }
+        }
+
+        function resetUpload() {
+            uploadContent.classList.remove('hidden');
+            uploadProgress.classList.add('hidden');
+            resultsPreview.classList.add('hidden');
+            fileInput.value = '';
+        }
+
+        continueBtn.addEventListener('click', async () => {
+            if (!currentSessionId) return;
+
+            continueBtn.disabled = true;
+            continueBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Processing...';
+
+            try {
+                const response = await fetch(`/create-checkout/${currentSessionId}`, {
+                    method: 'POST'
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to create checkout');
+                }
+
+                const data = await response.json();
+                window.location.href = data.redirect_url;
+            } catch (error) {
+                alert('Error: ' + error.message);
+                continueBtn.disabled = false;
+                continueBtn.innerHTML = '<span id="btn-text">Continue</span><i class="fas fa-arrow-right ml-2"></i>';
+            }
+        });
+    </script>
+</body>
+</html>
