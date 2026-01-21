@@ -43,7 +43,7 @@ if static_dir.exists():
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY", "")
 STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
 STRIPE_PRICE_PER_RECORD = 0.01  # €0.01 per record
-FREE_TIER_LIMIT = 100
+FREE_TIER_LIMIT = 250
 CURRENCY = "eur"
 
 # In-memory session storage (use Redis in production)
